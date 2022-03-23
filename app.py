@@ -2,52 +2,63 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 
-@app.route('/getmsg/', methods=['GET'])
-def respond():
-    # Retrieve the name from the url parameter /getmsg/?name=
-    name = request.args.get("name", None)
+import json
+import os
+from flask import Flask
+from flask import request
+from flask import make_response
 
-    # For debugging
-    print(f"Received: {name}")
+# Flask
+app = Flask(__name__)
+@app.route('/', methods=['POST'])
 
-    response = {}
+def MainFunction():
 
-    # Check if the user sent a name at all
-    if not name:
-        response["ERROR"] = "No name found. Please send a name."
-    # Check if the user entered a number
-    elif str(name).isdigit():
-        response["ERROR"] = "The name can't be numeric. Please send a string."
-    else:
-        response["MESSAGE"] = f"Welcome {name} to our awesome API!"
+    #รับ intent จาก Dailogflow
+    question_from_dailogflow_raw = request.get_json(silent=True, force=True)
 
-    # Return the response in json format
-    return jsonify(response)
+    #เรียกใช้ฟังก์ชัน generate_answer เพื่อแยกส่วนของคำถาม
+    answer_from_bot = generating_answer(question_from_dailogflow_raw)
+    
+    #ตอบกลับไปที่ Dailogflow
+    r = make_response(answer_from_bot)
+    r.headers['Content-Type'] = 'application/json' #การตั้งค่าประเภทของข้อมูลที่จะตอบกลับไป
+
+    return r
+
+def generating_answer(question_from_dailogflow_dict):
+
+    #Print intent ที่รับมาจาก Dailogflow
+    print(json.dumps(question_from_dailogflow_dict, indent=4 ,ensure_ascii=False))
+
+    #เก็บค่า ชื่อของ intent group ที่รับมาจาก Dailogflow
+    intent_group_question_str = question_from_dailogflow_dict["queryResult"]["intent"]["displayName"] 
+    print(intent_group_question_str)
+
+    #ลูปตัวเลือกของฟังก์ชั่นสำหรับตอบคำถามกลับ
+    if intent_group_question_str == 'grade - custom':
+        answer_str = grade_calculator(question_from_dailogflow_dict)
+    elif intent_group_question_str == 'บวก':
+        answer_str = "พร้อมบวกแล้ว"
+    else: 
+        answer_str = "พูดไรนิ"
+
+    #สร้างการแสดงของ dict 
+    answer_from_bot = {"fulfillmentText": answer_str}
+    
+    #แปลงจาก dict ให้เป็น JSON
+    answer_from_bot = json.dumps(answer_from_bot, indent=4) 
+    
+    return answer_from_bot
+
+def grade_calculator(res):
+    score = float(res["queryResult"]["outputContexts"][1]["parameters"]["score.original"])
+    if score == 99:
+        return "หูยเก่งจุง"
+    return "คะแนนเท่านี้แน่นะ "+str(score)
 
 
-@app.route('/post/', methods=['POST'])
-def post_something():
-    param = request.form.get('name')
-    print(param)
-    # You can add the test cases you made in the previous function, but in our case here you are just testing the POST functionality
-    if param:
-        return jsonify({
-            "Message": f"Welcome {name} to our awesome API!",
-            # Add this option to distinct the POST request
-            "METHOD": "POST"
-        })
-    else:
-        return jsonify({
-            "ERROR": "No name found. Please send a name."
-        })
-
-
-@app.route('/')
-def index():
-    # A welcome message to test our server
-    return "<h1>asdasdasd</h1>"
-
-
+#กำหนด port ให้ flask
 if __name__ == '__main__':
-    # Threaded option to enable multiple instances for multiple user access support
-    app.run(threaded=True, port=5000)
+     app.run(threaded=True, port=5000)
+
